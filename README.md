@@ -1,91 +1,91 @@
 # Path of Exile 2 Trade API Interceptor
 
-Este projeto intercepta requisições feitas para a API de trade do Path of Exile 2 e expõe os dados através de um endpoint REST.
+This project intercepts requests made to the Path of Exile 2 trade API and exposes the data through a REST endpoint.
 
-## 🚀 Instalação Rápida
+## 🚀 Quick Installation
 
 ```bash
-# Clonar/baixar o projeto
+# Clone/download the project
 cd poe2-trade-api
 
-# Instalar dependências
+# Install dependencies
 bun install
 
-# Instalar browsers do Playwright
+# Install Playwright browsers
 bunx playwright install chromium
 
-# Configurar cookies de desenvolvimento (veja seção abaixo)
+# Configure development cookies (see section below)
 cp .env.example .env
-# Edite o arquivo .env com seus cookies
+# Edit the .env file with your cookies
 
-# Executar em modo desenvolvimento
+# Run in development mode
 bun run dev
-# OU use o script de desenvolvimento
+# OR use the development script
 ./dev.sh
 ```
 
-## 🔐 Configuração de Cookies
+## 🔐 Cookie Configuration
 
-### Para Desenvolvimento
+### For Development
 
-**Opção 1: Arquivo de ambiente (.env)**
+**Option 1: Environment file (.env)**
 
 ```bash
 cp .env.example .env
-# Edite o arquivo .env e configure:
-DEV_COOKIES="POESESSID=seu_cookie_aqui"
+# Edit the .env file and configure:
+DEV_COOKIES="POESESSID=your_cookie_here"
 ```
 
-**Opção 2: Script de desenvolvimento**
+**Option 2: Development script**
 
 ```bash
-# Edite o arquivo dev.sh e configure o DEV_COOKIES
+# Edit the dev.sh file and configure DEV_COOKIES
 ./dev.sh
 ```
 
-**Opção 3: Constante no código**
+**Option 3: Constant in code**
 
 ```typescript
-// Em src/config.ts, edite a linha:
-DEV_COOKIES: "POESESSID=seu_cookie_aqui",
+// In src/config.ts, edit the line:
+DEV_COOKIES: "POESESSID=your_cookie_here",
 ```
 
-### Para Produção
+### For Production
 
-Envie os cookies através do header `X-POE-Cookies` nas requisições.
+Send cookies via the `X-POE-Cookies` header in requests.
 
-### 🍪 Como obter os cookies do PoE2
+### 🍪 How to get PoE2 cookies
 
-1. Abra o site do Path of Exile 2 no seu navegador
-2. Faça login na sua conta
-3. Abra as ferramentas de desenvolvedor (F12)
-4. Vá para a aba "Network" ou "Rede"
-5. Acesse uma página de trade
-6. Encontre uma requisição para `pathofexile.com`
-7. Copie o valor do header `Cookie`
-8. Use esse valor nas configurações acima
+1. Open the Path of Exile 2 website in your browser
+2. Log in to your account
+3. Open developer tools (F12)
+4. Go to the "Network" tab
+5. Access a trade page
+6. Find a request to `pathofexile.com`
+7. Copy the value of the `Cookie` header
+8. Use this value in the configurations above
 
-## 📡 Endpoints da API
+## 📡 API Endpoints
 
 ### `GET /api/trade`
 
-Intercepta e retorna dados de uma URL de trade do PoE2.
+Intercepts and returns data from a PoE2 trade URL.
 
-**Parâmetros:**
+**Parameters:**
 
-- `url` (obrigatório): URL completa do trade do PoE2
+- `url` (required): Complete PoE2 trade URL
 
-**Headers (produção):**
+**Headers (production):**
 
-- `X-POE-Cookies`: String com os cookies necessários
+- `X-POE-Cookies`: String with necessary cookies
 
-**Exemplo:**
+**Example:**
 
 ```bash
 curl "http://localhost:3000/api/trade?url=https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/EB3jnpzzt5"
 ```
 
-**Resposta:**
+**Response:**
 
 ```json
 {
@@ -115,87 +115,87 @@ curl "http://localhost:3000/api/trade?url=https://www.pathofexile.com/trade2/sea
 
 ### `GET /health`
 
-Status da aplicação.
+Application status.
 
 ### `GET /`
 
-Documentação e informações da API.
+API documentation and information.
 
-## 🛠 Scripts Disponíveis
+## 🛠 Available Scripts
 
 ```bash
-# Desenvolvimento com hot reload
+# Development with hot reload
 bun run dev
 
-# Produção
+# Production
 bun run start
 
-# Build da aplicação
+# Build application
 bun run build
 
-# Verificação de tipos TypeScript
+# TypeScript type checking
 bun run type-check
 
-# Script de desenvolvimento com cookies
+# Development script with cookies
 ./dev.sh
 ```
 
-## 🏗 Como Funciona
+## 🏗 How It Works
 
-1. **Recebe** uma URL do trade do PoE2
-2. **Abre** a página usando Playwright (Chromium headless)
-3. **Intercepta** todas as requisições para `/api/trade2`
-4. **Captura** o POST inicial (dados da busca) e o GET subsequente (resultados)
-5. **Retorna** os dados interceptados via API REST
+1. **Receives** a PoE2 trade URL
+2. **Opens** the page using Playwright (headless Chromium)
+3. **Intercepts** all requests to `/api/trade2`
+4. **Captures** the initial POST (search data) and subsequent GET (results)
+5. **Returns** the intercepted data via REST API
 
-## 📝 Estrutura das URLs do PoE2
+## 📝 PoE2 URL Structure
 
 ```
 https://www.pathofexile.com/trade2/search/poe2/{league}/{tradeId}
 ```
 
-- **Liga**: `Rise%20of%20the%20Abyssal` (dinâmico)
-- **Trade ID**: `EB3jnpzzt5` (dinâmico)
+- **League**: `Rise%20of%20the%20Abyssal` (dynamic)
+- **Trade ID**: `EB3jnpzzt5` (dynamic)
 
-## 🔧 Desenvolvimento
+## 🔧 Development
 
-### Estrutura do Projeto
+### Project Structure
 
 ```
 src/
-├── config.ts      # Configurações e tipos
-├── interceptor.ts # Lógica de interceptação com Playwright
-└── index.ts       # Servidor HTTP principal
+├── config.ts      # Configuration and types
+├── interceptor.ts # Interception logic with Playwright
+└── index.ts       # Main HTTP server
 ```
 
-### Logs e Debug
+### Logs and Debug
 
-O projeto inclui logs detalhados para debugging:
+The project includes detailed logs for debugging:
 
-- 🔍 Interceptação de requisições
-- ✅ Captura de respostas
-- 📋 Processamento de dados
-- ❌ Tratamento de erros
+- 🔍 Request interception
+- ✅ Response capture
+- 📋 Data processing
+- ❌ Error handling
 
-## ⚠️ Considerações
+## ⚠️ Considerations
 
-- **Cookies**: Necessários para acessar a API privada do PoE2
-- **Rate Limiting**: Respeite os limites da API do PoE2
-- **Headless Browser**: Usa Chromium via Playwright
-- **CORS**: Configurado para permitir requisições de qualquer origem
+- **Cookies**: Required to access PoE2's private API
+- **Rate Limiting**: Respect PoE2 API limits
+- **Headless Browser**: Uses Chromium via Playwright
+- **CORS**: Configured to allow requests from any origin
 
 ## 🐛 Troubleshooting
 
-**Erro "Cookies são obrigatórios":**
+**Error "Cookies are required":**
 
-- Configure DEV_COOKIES no desenvolvimento ou envie X-POE-Cookies em produção
+- Configure DEV_COOKIES in development or send X-POE-Cookies in production
 
-**Timeout nas requisições:**
+**Request timeout:**
 
-- Verifique se a URL do PoE2 está correta
-- Confirme se os cookies estão válidos
+- Check if the PoE2 URL is correct
+- Confirm cookies are valid
 
-**Erro de dependências:**
+**Dependency error:**
 
-- Execute `bunx playwright install chromium`
-- Verifique se todas as dependências foram instaladas com `bun install`
+- Run `bunx playwright install chromium`
+- Check if all dependencies were installed with `bun install`

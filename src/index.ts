@@ -3,13 +3,11 @@ import { config } from "./config";
 
 const interceptor = new PoETradeInterceptor();
 
-// Função para extrair parâmetros da URL do PoE2
 function parsePoEUrl(url: string): { league: string; tradeId: string } | null {
   try {
     const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split('/');https://www.pathofexile.com/api/trade2
+    const pathParts = urlObj.pathname.split('/');
     
-    // Formato esperado: /trade2/search/poe2/{league}/{tradeId}
     if (pathParts.length >= 6 && pathParts[1] === 'trade2' && pathParts[2] === 'search' && pathParts[3] === 'poe2') {
       return {
         league: decodeURIComponent(pathParts[4]),
@@ -19,12 +17,11 @@ function parsePoEUrl(url: string): { league: string; tradeId: string } | null {
     
     return null;
   } catch (error) {
-    console.error("Erro ao fazer parse da URL:", error);
+    console.error("Error parsing URL:", error);
     return null;
   }
 }
 
-// Função para validar URL do PoE2
 function isValidPoEUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
@@ -34,20 +31,11 @@ function isValidPoEUrl(url: string): boolean {
   }
 }
 
-// Função para obter cookies do request
 function getCookiesFromRequest(req: Request): string | undefined {
-  // Primeiro, tentar o header personalizado para produção
-  const customCookies = req.headers.get('X-POE-Cookies');
-  if (customCookies) {
-    return customCookies;
-  }
-  
-  // Se estiver em desenvolvimento, usar a constante
   if (config.IS_DEVELOPMENT && config.DEV_COOKIES) {
     return config.DEV_COOKIES;
   }
   
-  // Como fallback, tentar usar cookies normais do request
   const cookieHeader = req.headers.get('Cookie');
   if (cookieHeader) {
     return cookieHeader;
@@ -56,16 +44,14 @@ function getCookiesFromRequest(req: Request): string | undefined {
   return undefined;
 }
 
-// Inicializar o interceptor
 await interceptor.init();
-console.log("🚀 Interceptor inicializado");
+console.log("🚀 Interceptor initialized");
 
 const server = Bun.serve({
   port: config.PORT,
   async fetch(req) {
     const url = new URL(req.url);
     
-    // Configurar CORS
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -73,7 +59,6 @@ const server = Bun.serve({
       'Content-Type': 'application/json',
     };
     
-    // Responder OPTIONS para CORS
     if (req.method === 'OPTIONS') {
       return new Response(null, { 
         status: 204, 
@@ -81,7 +66,6 @@ const server = Bun.serve({
       });
     }
     
-    // Endpoint principal da API
     if (url.pathname === '/api/trade' && req.method === 'GET') {
       try {
         const tradeUrl = url.searchParams.get('url');
@@ -89,7 +73,7 @@ const server = Bun.serve({
         if (!tradeUrl) {
           return new Response(
             JSON.stringify({ 
-              error: 'Parâmetro "url" é obrigatório',
+              error: 'Parameter "url" is required',
               example: '/api/trade?url=https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/EB3jnpzzt5'
             }), 
             { 
@@ -102,7 +86,7 @@ const server = Bun.serve({
         if (!isValidPoEUrl(tradeUrl)) {
           return new Response(
             JSON.stringify({ 
-              error: 'URL inválida. Deve ser uma URL válida do PoE2 trade',
+              error: 'Invalid URL. Must be a valid PoE2 trade URL',
               provided: tradeUrl,
               expected: 'https://www.pathofexile.com/trade2/search/poe2/{league}/{tradeId}'
             }), 
@@ -113,18 +97,16 @@ const server = Bun.serve({
           );
         }
         
-        // Extrair informações da URL
         const urlInfo = parsePoEUrl(tradeUrl);
-        console.log(`📋 Processando trade - Liga: ${urlInfo?.league}, ID: ${urlInfo?.tradeId}`);
+        console.log(`📋 Processing trade - League: ${urlInfo?.league}, ID: ${urlInfo?.tradeId}`);
         
-        // Obter cookies
         const cookies = getCookiesFromRequest(req);
         
         if (!cookies && !config.IS_DEVELOPMENT) {
           return new Response(
             JSON.stringify({ 
-              error: 'Cookies são obrigatórios. Envie através do header X-POE-Cookies',
-              note: 'Em desenvolvimento, configure DEV_COOKIES no arquivo config.ts'
+              error: 'Cookies are required. Send via X-POE-Cookies header',
+              note: 'In development, configure DEV_COOKIES in config.ts file'
             }), 
             { 
               status: 401, 
@@ -133,12 +115,10 @@ const server = Bun.serve({
           );
         }
         
-        console.log(`🔐 Usando cookies: ${cookies ? 'Configurados' : 'Não fornecidos'}`);
+        console.log(`🔐 Using cookies: ${cookies ? 'Configured' : 'Not provided'}`);
         
-        // Interceptar as requisições
         const result = await interceptor.interceptTradeRequests(tradeUrl, cookies);
         
-        // Adicionar metadados
         const response = {
           ...result,
           metadata: {
@@ -160,10 +140,10 @@ const server = Bun.serve({
         );
         
       } catch (error) {
-        console.error('❌ Erro no endpoint /api/trade:', error);
+        console.error('❌ Error in /api/trade endpoint:', error);
         return new Response(
           JSON.stringify({ 
-            error: 'Erro interno do servidor',
+            error: 'Internal server error',
             details: error instanceof Error ? error.message : String(error)
           }), 
           { 
@@ -174,7 +154,6 @@ const server = Bun.serve({
       }
     }
     
-    // Endpoint de saúde
     if (url.pathname === '/health' && req.method === 'GET') {
       return new Response(
         JSON.stringify({ 
@@ -190,20 +169,19 @@ const server = Bun.serve({
       );
     }
     
-    // Endpoint de informações
     if (url.pathname === '/' && req.method === 'GET') {
       return new Response(
         JSON.stringify({
           service: 'PoE2 Trade API Interceptor',
           version: '1.0.0',
           endpoints: {
-            'GET /api/trade?url={poe2_url}': 'Intercepta requisições de trade do PoE2',
-            'GET /health': 'Status da aplicação',
-            'GET /': 'Esta página'
+            'GET /api/trade?url={poe2_url}': 'Intercepts PoE2 trade requests',
+            'GET /health': 'Application status',
+            'GET /': 'This page'
           },
           usage: {
-            development: 'Configure DEV_COOKIES no arquivo src/config.ts',
-            production: 'Envie cookies através do header X-POE-Cookies'
+            development: 'Configure DEV_COOKIES in src/config.ts file',
+            production: 'Send cookies via X-POE-Cookies header'
           },
           example: `/api/trade?url=${encodeURIComponent('https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/EB3jnpzzt5')}`
         }, null, 2), 
@@ -214,10 +192,9 @@ const server = Bun.serve({
       );
     }
     
-    // 404 para outras rotas
     return new Response(
       JSON.stringify({ 
-        error: 'Endpoint não encontrado',
+        error: 'Endpoint not found',
         availableEndpoints: ['/', '/health', '/api/trade']
       }), 
       { 
@@ -228,18 +205,17 @@ const server = Bun.serve({
   }
 });
 
-console.log(`🌟 Servidor rodando em http://localhost:${server.port}`);
-console.log(`📖 Documentação disponível em http://localhost:${server.port}/`);
+console.log(`🌟 Server running at http://localhost:${server.port}`);
+console.log(`📖 Documentation available at http://localhost:${server.port}/`);
 
-// Cleanup quando o processo for finalizado
 process.on('SIGINT', async () => {
-  console.log("\n🛑 Finalizando servidor...");
+  console.log("\n🛑 Shutting down server...");
   await interceptor.cleanup();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log("\n🛑 Finalizando servidor...");
+  console.log("\n🛑 Shutting down server...");
   await interceptor.cleanup();
   process.exit(0);
 });

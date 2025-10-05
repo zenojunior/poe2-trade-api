@@ -14,11 +14,9 @@ export class PoETradeInterceptor {
     
     this.page = await this.browser.newPage();
     
-    // Configurar interceptação de requisições
     await this.page.route('**/*', async (route, request) => {
       const url = request.url();
       
-      // Interceptar apenas requisições para a API do trade
       if (url.includes('/api/trade2')) {
         console.log(`🔍 Interceptando: ${request.method()} ${url}`);
         
@@ -31,10 +29,8 @@ export class PoETradeInterceptor {
         
         this.interceptedRequests.push(interceptedReq);
         
-        // Continuar com a requisição original
         const response = await route.fetch();
         
-        // Capturar a resposta
         if (response.ok()) {
           try {
             const responseData = await response.json();
@@ -48,7 +44,6 @@ export class PoETradeInterceptor {
         
         await route.fulfill({ response });
       } else {
-        // Para outras requisições, apenas continuar
         await route.continue();
       }
     });
@@ -56,18 +51,15 @@ export class PoETradeInterceptor {
   
   async interceptTradeRequests(tradeUrl: string, cookies?: string): Promise<TradeApiResponse> {
     if (!this.page) {
-      throw new Error("Interceptor não foi inicializado. Chame init() primeiro.");
+      throw new Error("Interceptor not initialized. Call init() first.");
     }
     
     try {
-      // Limpar requisições anteriores
       this.interceptedRequests = [];
       
-      // Configurar cookies se fornecidos
       const cookiesToUse = cookies || config.DEV_COOKIES;
       
       if (cookiesToUse) {
-        // Parse dos cookies - assumindo formato "name1=value1; name2=value2"
         const cookieObjects = cookiesToUse.split(';').map(cookie => {
           const [name, value] = cookie.trim().split('=');
           return {
@@ -81,44 +73,54 @@ export class PoETradeInterceptor {
         await this.page.context().addCookies(cookieObjects);
       }
       
-      console.log(`🚀 Navegando para: ${tradeUrl}`);
+      console.log(`🚀 Navigating to: ${tradeUrl}`);
       
-      // Navegar para a página e aguardar o carregamento
       await this.page.goto(tradeUrl, { 
         waitUntil: 'networkidle',
         timeout: config.REQUEST_TIMEOUT 
       });
       
-      // Aguardar um pouco mais para garantir que as requisições sejam feitas
       await this.page.waitForTimeout(3000);
       
-      // Aguardar especificamente pelas requisições da API
       await this.waitForApiRequests();
       
-      // Processar e retornar os dados interceptados
       return this.processInterceptedData();
       
     } catch (error) {
-      console.error("❌ Erro durante interceptação:", error);
+      console.error("❌ Error during interception:", error);
       return {
-        error: `Erro durante interceptação: ${error instanceof Error ? error.message : String(error)}`
+        error: `Error during interception: ${error instanceof Error ? error.message : String(error)}`
       };
     }
   }
   
   private async waitForApiRequests(): Promise<void> {
-    const maxWaitTime = 15000; // 15 segundos
-    const checkInterval = 500; // 500ms
+    const maxWaitTime = 15000;
+    const checkInterval = 500;
     let waitedTime = 0;
     
     while (waitedTime < maxWaitTime) {
-      // Verificar se temos pelo menos uma requisição POST e uma GET
-      const postReqs = this.interceptedRequests.filter(req => req.method === 'POST');
-      const getReqs = this.interceptedRequests.filter(req => req.method === 'GET');
+      const postSearchReq = this.interceptedRequests.find(req => 
+        req.method === 'POST' && 
+        req.url.includes('https://www.pathofexile.com/api/trade2/search/poe2')
+      );
       
-      if (postReqs.length > 0 && getReqs.length > 0) {
-        console.log("✅ Requisições POST e GET capturadas!");
+      const getFetchReq = this.interceptedRequests.find(req => 
+        req.method === 'GET' && 
+        req.url.includes('https://www.pathofexile.com/api/trade2/fetch')
+      );
+      
+      if (postSearchReq && getFetchReq) {
+        console.log("✅ Ambas requisições específicas capturadas!");
+        console.log(`   - POST search: ${postSearchReq.url.substring(0, 80)}...`);
+        console.log(`   - GET fetch: ${getFetchReq.url.substring(0, 80)}...`);
         break;
+      }
+      
+      if (waitedTime % 2000 === 0) {
+        const hasPost = postSearchReq ? '✓' : '✗';
+        const hasGet = getFetchReq ? '✓' : '✗';
+        console.log(`🔍 Waiting for APIs: POST search ${hasPost} | GET fetch ${hasGet} (${waitedTime/1000}s)`);
       }
       
       await this.page?.waitForTimeout(checkInterval);
@@ -126,61 +128,83 @@ export class PoETradeInterceptor {
     }
     
     if (waitedTime >= maxWaitTime) {
-      console.log("⚠️ Timeout aguardando requisições da API");
+      console.log("⚠️ Timeout waiting for specific API requests");
+      console.log(`   Intercepted: ${this.interceptedRequests.length} requests`);
+      this.interceptedRequests.forEach(req => {
+        console.log(`   - ${req.method} ${req.url.substring(0, 100)}...`);
+      });
     }
   }
   
   private processInterceptedData(): TradeApiResponse {
-    console.log(`📊 Processando ${this.interceptedRequests.length} requisições interceptadas`);
+    console.log(`📊 Processing ${this.interceptedRequests.length} intercepted requests`);
     
-    const postRequest = this.interceptedRequests.find(req => req.method === 'POST');
-    const getRequest = this.interceptedRequests.find(req => req.method === 'GET');
+    const postSearchRequest = this.interceptedRequests.find(req => 
+      req.method === 'POST' && 
+      req.url.includes('https://www.pathofexile.com/api/trade2/search/poe2')
+    );
+    
+    const getFetchRequest = this.interceptedRequests.find(req => 
+      req.method === 'GET' && 
+      req.url.includes('https://www.pathofexile.com/api/trade2/fetch')
+    );
     
     let searchData = undefined;
-    let results = undefined;
+    let items = undefined;
     
-    // Extrair dados da requisição POST (busca)
-    if (postRequest?.postData) {
+    if (postSearchRequest?.postData) {
       try {
-        searchData = JSON.parse(postRequest.postData);
+        searchData = JSON.parse(postSearchRequest.postData);
+        console.log("✅ Search data extracted from POST");
       } catch (error) {
-        console.log("⚠️ Erro ao fazer parse dos dados POST:", error);
+        console.log("⚠️ Error parsing POST search data:", error);
       }
     }
     
-    // Extrair resultados da requisição GET
-    if (getRequest?.response) {
+    if (getFetchRequest?.response) {
       try {
-        if (typeof getRequest.response === 'string') {
-          results = JSON.parse(getRequest.response);
+        let responseData;
+        if (typeof getFetchRequest.response === 'string') {
+          responseData = JSON.parse(getFetchRequest.response);
         } else {
-          results = getRequest.response;
+          responseData = getFetchRequest.response;
+        }
+        
+        if (responseData && responseData.result && Array.isArray(responseData.result)) {
+          items = responseData.result;
+          console.log("✅ Results array extracted from 'result' field");
+        } else {
+          items = responseData;
+          console.log("✅ Results extracted directly from response");
         }
       } catch (error) {
-        console.log("⚠️ Erro ao processar resposta GET:", error);
+        console.log("⚠️ Error processing GET fetch response:", error);
       }
     }
     
-    // Criar versões sanitizadas das requisições sem os headers
-    const sanitizedPostRequest: SanitizedInterceptedRequest | undefined = postRequest ? {
-      method: postRequest.method,
-      url: postRequest.url,
-      postData: postRequest.postData,
-      response: postRequest.response
+    const sanitizedPostRequest: SanitizedInterceptedRequest | undefined = postSearchRequest ? {
+      method: postSearchRequest.method,
+      url: postSearchRequest.url,
+      postData: postSearchRequest.postData,
+      response: postSearchRequest.response
     } : undefined;
     
-    const sanitizedGetRequest: SanitizedInterceptedRequest | undefined = getRequest ? {
-      method: getRequest.method,
-      url: getRequest.url,
-      postData: getRequest.postData,
-      response: getRequest.response
+    const sanitizedGetRequest: SanitizedInterceptedRequest | undefined = getFetchRequest ? {
+      method: getFetchRequest.method,
+      url: getFetchRequest.url,
+      postData: getFetchRequest.postData,
+      response: getFetchRequest.response
     } : undefined;
+    
+    console.log(`🎯 Specific requests found:`);
+    console.log(`   - POST search: ${postSearchRequest ? '✓' : '✗'}`);
+    console.log(`   - GET fetch: ${getFetchRequest ? '✓' : '✗'}`);
     
     return {
       postRequest: sanitizedPostRequest,
       getRequest: sanitizedGetRequest,
       searchData,
-      results
+      items
     };
   }
   
