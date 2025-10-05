@@ -28,26 +28,12 @@ bun run dev
 
 ### For Development
 
-**Option 1: Environment file (.env)**
+**Environment file (.env)**
 
 ```bash
 cp .env.example .env
 # Edit the .env file and configure:
 DEV_COOKIES="POESESSID=your_cookie_here"
-```
-
-**Option 2: Development script**
-
-```bash
-# Edit the dev.sh file and configure DEV_COOKIES
-./dev.sh
-```
-
-**Option 3: Constant in code**
-
-```typescript
-// In src/config.ts, edit the line:
-DEV_COOKIES: "POESESSID=your_cookie_here",
 ```
 
 ### For Production
