@@ -32,6 +32,11 @@ function isValidPoEUrl(url: string): boolean {
 }
 
 function getCookiesFromRequest(req: Request): string | undefined {
+  const customCookies = req.headers.get('X-POE-Cookies');
+  if (customCookies) {
+    return customCookies;
+  }
+  
   if (config.IS_DEVELOPMENT && config.DEV_COOKIES) {
     return config.DEV_COOKIES;
   }

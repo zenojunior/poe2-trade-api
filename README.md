@@ -88,7 +88,7 @@ curl "http://localhost:3000/api/trade?url=https://www.pathofexile.com/trade2/sea
     "response": {...}
   },
   "searchData": {...},
-  "results": [...],
+  "items": [...],
   "metadata": {
     "tradeUrl": "...",
     "league": "Rise of the Abyssal",
