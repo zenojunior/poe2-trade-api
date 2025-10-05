@@ -1,0 +1,25 @@
+{
+  "name": "poe2-trade-api",
+  "version": "1.0.0",
+  "description": "API interceptor for Path of Exile 2 trade requests",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target bun",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": ["bun", "api", "path-of-exile", "trade", "interceptor"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
