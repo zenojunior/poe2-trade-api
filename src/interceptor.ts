@@ -31,7 +31,7 @@ export class PoETradeInterceptor {
     await page.route('**/*', async (route, request) => {
       const url = request.url();
       
-      if (url.includes('/api/trade2')) {
+      if (url.includes('/api/trade2') && !url.includes('/api/trade2/data')) {
         console.log(`🔍 Intercepting: ${request.method()} ${url}`);
         
         const interceptedReq: InterceptedRequest = {
