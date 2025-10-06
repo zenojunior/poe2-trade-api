@@ -223,15 +223,13 @@ export class PoETradeInterceptor {
     const sanitizedPostRequest: SanitizedInterceptedRequest | undefined = postSearchRequest ? {
       method: postSearchRequest.method,
       url: postSearchRequest.url,
-      postData: postSearchRequest.postData,
-      response: postSearchRequest.response
+      postData: postSearchRequest.postData
     } : undefined;
     
     const sanitizedGetRequest: SanitizedInterceptedRequest | undefined = getFetchRequest ? {
       method: getFetchRequest.method,
       url: getFetchRequest.url,
-      postData: getFetchRequest.postData,
-      response: getFetchRequest.response
+      postData: getFetchRequest.postData
     } : undefined;
     
     console.log(`🎯 [${sessionId}] Specific requests found:`);

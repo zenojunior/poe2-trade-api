@@ -37,7 +37,6 @@ export interface SanitizedInterceptedRequest {
   method: string;
   url: string;
   postData?: string;
-  response?: any;
 }
 
 export interface TradeApiResponse {

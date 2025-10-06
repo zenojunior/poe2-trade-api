@@ -79,13 +79,11 @@ curl "http://localhost:3000/api/trade?url=https://www.pathofexile.com/trade2/sea
     "method": "POST",
     "url": "https://www.pathofexile.com/api/trade2/search/poe2/Rise%20of%20the%20Abyssal",
     "headers": {...},
-    "postData": "{...}",
-    "response": {...}
+    "postData": "{...}"
   },
   "getRequest": {
     "method": "GET",
-    "url": "https://www.pathofexile.com/api/trade2/fetch/...",
-    "response": {...}
+    "url": "https://www.pathofexile.com/api/trade2/fetch/..."
   },
   "searchData": {...},
   "items": [...],
