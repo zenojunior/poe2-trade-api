@@ -1,24 +1,38 @@
-import { chromium, Browser, Page, Request, Response } from "playwright";
+import { chromium, Browser, BrowserContext, Page } from "playwright";
 import { config, InterceptedRequest, TradeApiResponse, SanitizedInterceptedRequest } from "./config";
+
+interface BrowserSession {
+  context: BrowserContext;
+  page: Page;
+  interceptedRequests: InterceptedRequest[];
+}
 
 export class PoETradeInterceptor {
   private browser: Browser | null = null;
-  private page: Page | null = null;
-  private interceptedRequests: InterceptedRequest[] = [];
   
   async init(): Promise<void> {
     this.browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
+    console.log("🚀 Browser pool initialized");
+  }
+  
+  private async createIsolatedSession(): Promise<BrowserSession> {
+    if (!this.browser) {
+      throw new Error("Interceptor not initialized. Call init() first.");
+    }
     
-    this.page = await this.browser.newPage();
+    const context = await this.browser.newContext();
+    const page = await context.newPage();
+    const interceptedRequests: InterceptedRequest[] = [];
     
-    await this.page.route('**/*', async (route, request) => {
+    // Each session has its own isolated interceptor
+    await page.route('**/*', async (route, request) => {
       const url = request.url();
       
       if (url.includes('/api/trade2')) {
-        console.log(`🔍 Interceptando: ${request.method()} ${url}`);
+        console.log(`🔍 Intercepting: ${request.method()} ${url}`);
         
         const interceptedReq: InterceptedRequest = {
           method: request.method(),
@@ -27,7 +41,7 @@ export class PoETradeInterceptor {
           postData: request.postData() || undefined,
         };
         
-        this.interceptedRequests.push(interceptedReq);
+        interceptedRequests.push(interceptedReq);
         
         const response = await route.fetch();
         
@@ -35,9 +49,9 @@ export class PoETradeInterceptor {
           try {
             const responseData = await response.json();
             interceptedReq.response = responseData;
-            console.log(`✅ Resposta capturada para: ${request.method()} ${url}`);
+            console.log(`✅ Response captured for: ${request.method()} ${url}`);
           } catch (error) {
-            console.log(`⚠️ Erro ao capturar resposta JSON: ${error}`);
+            console.log(`⚠️ Error capturing JSON response: ${error}`);
             interceptedReq.response = await response.text();
           }
         }
@@ -47,15 +61,29 @@ export class PoETradeInterceptor {
         await route.continue();
       }
     });
+    
+    return { context, page, interceptedRequests };
+  }
+  
+  private async cleanupSession(session: BrowserSession): Promise<void> {
+    try {
+      await session.page.close();
+      await session.context.close();
+    } catch (error) {
+      console.error("⚠️ Error cleaning up session:", error);
+    }
   }
   
   async interceptTradeRequests(tradeUrl: string, cookies?: string): Promise<TradeApiResponse> {
-    if (!this.page) {
-      throw new Error("Interceptor not initialized. Call init() first.");
-    }
+    const sessionId = Math.random().toString(36).substr(2, 9);
+    console.log(`🚀 [${sessionId}] Starting isolated session for: ${tradeUrl}`);
+    
+    let session: BrowserSession | null = null;
     
     try {
-      this.interceptedRequests = [];
+      // Create isolated session for this request
+      session = await this.createIsolatedSession();
+      console.log(`🔒 [${sessionId}] Session created with isolated context`);
       
       const cookiesToUse = cookies || config.DEV_COOKIES;
       
@@ -70,48 +98,58 @@ export class PoETradeInterceptor {
           };
         });
         
-        await this.page.context().addCookies(cookieObjects);
+        await session.context.addCookies(cookieObjects);
+        console.log(`🍪 [${sessionId}] Cookies configured`);
       }
       
-      console.log(`🚀 Navigating to: ${tradeUrl}`);
+      console.log(`🌐 [${sessionId}] Navigating to: ${tradeUrl}`);
       
-      await this.page.goto(tradeUrl, { 
+      await session.page.goto(tradeUrl, { 
         waitUntil: 'networkidle',
         timeout: config.REQUEST_TIMEOUT 
       });
       
-      await this.page.waitForTimeout(3000);
+      await session.page.waitForTimeout(3000);
       
-      await this.waitForApiRequests();
+      await this.waitForApiRequests(session, sessionId);
       
-      return this.processInterceptedData();
+      const result = this.processInterceptedData(session.interceptedRequests, sessionId);
+      console.log(`✅ [${sessionId}] Session completed successfully`);
+      
+      return result;
       
     } catch (error) {
-      console.error("❌ Error during interception:", error);
+      console.error(`❌ [${sessionId}] Error during interception:`, error);
       return {
         error: `Error during interception: ${error instanceof Error ? error.message : String(error)}`
       };
+    } finally {
+      // Always cleanup the session
+      if (session) {
+        await this.cleanupSession(session);
+        console.log(`🧹 [${sessionId}] Session cleaned up`);
+      }
     }
   }
   
-  private async waitForApiRequests(): Promise<void> {
+  private async waitForApiRequests(session: BrowserSession, sessionId: string): Promise<void> {
     const maxWaitTime = 15000;
     const checkInterval = 500;
     let waitedTime = 0;
     
     while (waitedTime < maxWaitTime) {
-      const postSearchReq = this.interceptedRequests.find(req => 
+      const postSearchReq = session.interceptedRequests.find((req: InterceptedRequest) => 
         req.method === 'POST' && 
         req.url.includes('https://www.pathofexile.com/api/trade2/search/poe2')
       );
       
-      const getFetchReq = this.interceptedRequests.find(req => 
+      const getFetchReq = session.interceptedRequests.find((req: InterceptedRequest) => 
         req.method === 'GET' && 
         req.url.includes('https://www.pathofexile.com/api/trade2/fetch')
       );
       
       if (postSearchReq && getFetchReq) {
-        console.log("✅ Ambas requisições específicas capturadas!");
+        console.log(`✅ [${sessionId}] Both specific requests captured!`);
         console.log(`   - POST search: ${postSearchReq.url.substring(0, 80)}...`);
         console.log(`   - GET fetch: ${getFetchReq.url.substring(0, 80)}...`);
         break;
@@ -120,31 +158,31 @@ export class PoETradeInterceptor {
       if (waitedTime % 2000 === 0) {
         const hasPost = postSearchReq ? '✓' : '✗';
         const hasGet = getFetchReq ? '✓' : '✗';
-        console.log(`🔍 Waiting for APIs: POST search ${hasPost} | GET fetch ${hasGet} (${waitedTime/1000}s)`);
+        console.log(`🔍 [${sessionId}] Waiting for APIs: POST search ${hasPost} | GET fetch ${hasGet} (${waitedTime/1000}s)`);
       }
       
-      await this.page?.waitForTimeout(checkInterval);
+      await session.page.waitForTimeout(checkInterval);
       waitedTime += checkInterval;
     }
     
     if (waitedTime >= maxWaitTime) {
-      console.log("⚠️ Timeout waiting for specific API requests");
-      console.log(`   Intercepted: ${this.interceptedRequests.length} requests`);
-      this.interceptedRequests.forEach(req => {
+      console.log(`⚠️ [${sessionId}] Timeout waiting for specific API requests`);
+      console.log(`   Intercepted: ${session.interceptedRequests.length} requests`);
+      session.interceptedRequests.forEach((req: InterceptedRequest) => {
         console.log(`   - ${req.method} ${req.url.substring(0, 100)}...`);
       });
     }
   }
   
-  private processInterceptedData(): TradeApiResponse {
-    console.log(`📊 Processing ${this.interceptedRequests.length} intercepted requests`);
+  private processInterceptedData(interceptedRequests: InterceptedRequest[], sessionId: string): TradeApiResponse {
+    console.log(`📊 [${sessionId}] Processing ${interceptedRequests.length} intercepted requests`);
     
-    const postSearchRequest = this.interceptedRequests.find(req => 
+    const postSearchRequest = interceptedRequests.find((req: InterceptedRequest) => 
       req.method === 'POST' && 
       req.url.includes('https://www.pathofexile.com/api/trade2/search/poe2')
     );
     
-    const getFetchRequest = this.interceptedRequests.find(req => 
+    const getFetchRequest = interceptedRequests.find((req: InterceptedRequest) => 
       req.method === 'GET' && 
       req.url.includes('https://www.pathofexile.com/api/trade2/fetch')
     );
@@ -155,9 +193,9 @@ export class PoETradeInterceptor {
     if (postSearchRequest?.postData) {
       try {
         searchData = JSON.parse(postSearchRequest.postData);
-        console.log("✅ Search data extracted from POST");
+        console.log(`✅ [${sessionId}] Search data extracted from POST`);
       } catch (error) {
-        console.log("⚠️ Error parsing POST search data:", error);
+        console.log(`⚠️ [${sessionId}] Error parsing POST search data:`, error);
       }
     }
     
@@ -172,13 +210,13 @@ export class PoETradeInterceptor {
         
         if (responseData && responseData.result && Array.isArray(responseData.result)) {
           items = responseData.result;
-          console.log("✅ Results array extracted from 'result' field");
+          console.log(`✅ [${sessionId}] Results array extracted from 'result' field`);
         } else {
           items = responseData;
-          console.log("✅ Results extracted directly from response");
+          console.log(`✅ [${sessionId}] Results extracted directly from response`);
         }
       } catch (error) {
-        console.log("⚠️ Error processing GET fetch response:", error);
+        console.log(`⚠️ [${sessionId}] Error processing GET fetch response:`, error);
       }
     }
     
@@ -196,7 +234,7 @@ export class PoETradeInterceptor {
       response: getFetchRequest.response
     } : undefined;
     
-    console.log(`🎯 Specific requests found:`);
+    console.log(`🎯 [${sessionId}] Specific requests found:`);
     console.log(`   - POST search: ${postSearchRequest ? '✓' : '✗'}`);
     console.log(`   - GET fetch: ${getFetchRequest ? '✓' : '✗'}`);
     
@@ -209,16 +247,10 @@ export class PoETradeInterceptor {
   }
   
   async cleanup(): Promise<void> {
-    if (this.page) {
-      await this.page.close();
-      this.page = null;
-    }
-    
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
+      console.log("🧹 Browser pool closed");
     }
-    
-    this.interceptedRequests = [];
   }
 }

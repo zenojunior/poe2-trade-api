@@ -72,6 +72,8 @@ const server = Bun.serve({
     }
     
     if (url.pathname === '/api/trade' && req.method === 'GET') {
+      let requestId = 'unknown';
+      
       try {
         const tradeUrl = url.searchParams.get('url');
         
@@ -103,7 +105,8 @@ const server = Bun.serve({
         }
         
         const urlInfo = parsePoEUrl(tradeUrl);
-        console.log(`📋 Processing trade - League: ${urlInfo?.league}, ID: ${urlInfo?.tradeId}`);
+        requestId = Math.random().toString(36).substr(2, 9);
+        console.log(`📋 [${requestId}] Processing trade - League: ${urlInfo?.league}, ID: ${urlInfo?.tradeId}`);
         
         const cookies = getCookiesFromRequest(req);
         
@@ -120,13 +123,14 @@ const server = Bun.serve({
           );
         }
         
-        console.log(`🔐 Using cookies: ${cookies ? 'Configured' : 'Not provided'}`);
+        console.log(`🔐 [${requestId}] Using cookies: ${cookies ? 'Configured' : 'Not provided'}`);
         
         const result = await interceptor.interceptTradeRequests(tradeUrl, cookies);
         
         const response = {
           ...result,
           metadata: {
+            requestId,
             tradeUrl,
             league: urlInfo?.league,
             tradeId: urlInfo?.tradeId,
@@ -135,6 +139,8 @@ const server = Bun.serve({
                                     result.postRequest || result.getRequest ? 1 : 0
           }
         };
+        
+        console.log(`✅ [${requestId}] Request completed successfully`);
         
         return new Response(
           JSON.stringify(response, null, 2), 
@@ -145,7 +151,7 @@ const server = Bun.serve({
         );
         
       } catch (error) {
-        console.error('❌ Error in /api/trade endpoint:', error);
+        console.error(`❌ [${requestId}] Error in /api/trade endpoint:`, error);
         return new Response(
           JSON.stringify({ 
             error: 'Internal server error',
